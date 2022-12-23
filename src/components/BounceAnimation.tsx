@@ -1,33 +1,60 @@
 import React, {useRef, useEffect} from 'react';
-import {View, StyleSheet, Animated, Easing} from 'react-native';
+import {View, StyleSheet, Animated, Easing, PanResponder} from 'react-native';
 
 const BounceAnimation = () => {
-  const dropdownAnim = useRef(new Animated.Value(0)).current;
+  const pan = useRef(new Animated.ValueXY()).current;
+
+  const panXValue = useRef<number>(0);
+  const panYValue = useRef<number>(0);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(dropdownAnim, {
-        toValue: 1,
-        easing: Easing.bounce,
-        duration: 1000,
-        useNativeDriver: true,
+    const unsubscribe = pan.addListener(value => {
+      console.log('PAN VALUE: ', value);
+      panXValue.current = value.x;
+      panYValue.current = value.y;
+    });
+
+    return () => {
+      pan.removeListener(unsubscribe);
+    };
+  }, []);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        console.log('PAN GRANT: ', panXValue.current, panYValue.current);
+        pan.setOffset({
+          x: panXValue.current,
+          y: panYValue.current,
+        });
+      },
+      onPanResponderMove: Animated.event([null, {dx: pan.x, dy: pan.y}], {
+        useNativeDriver: false,
       }),
-    ).start();
-  }, [dropdownAnim]);
+      onPanResponderRelease: () => {
+        console.log('Pan Released');
+        pan.flattenOffset();
+
+        setTimeout(() => {
+          Animated.timing(pan, {
+            toValue: {x: panXValue.current, y: 0},
+            easing: Easing.bounce,
+            duration: 800,
+            useNativeDriver: false,
+          }).start();
+        }, 200);
+      },
+    }),
+  ).current;
 
   return (
     <Animated.View
       style={{
         ...styles.circle,
-        transform: [
-          {
-            translateY: dropdownAnim.interpolate({
-              inputRange: [0, 1, 2],
-              outputRange: [0, 200, 0],
-            }),
-          },
-        ],
+        transform: pan.getTranslateTransform(),
       }}
+      {...panResponder.panHandlers}
     />
   );
 };
